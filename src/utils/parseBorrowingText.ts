@@ -3,7 +3,7 @@
 // into a structured BorrowingDetail-like object
 // ============================================================
 
-import type { Asset, BorrowingAsset, BorrowingMember } from '../lib/types';
+import type { Asset, BorrowingAsset } from '../lib/types';
 
 export interface ParsedAsset {
   name: string;
@@ -83,7 +83,7 @@ export function parseBorrowingText(raw: string): ParsedBorrowing | null {
       while (i < assetLines.length) {
         // Skip image placeholder lines
         if (assetLines[i].toLowerCase().includes('image not found') ||
-            assetLines[i].toLowerCase().includes('image')) {
+          assetLines[i].toLowerCase().includes('image')) {
           i++;
           continue;
         }
