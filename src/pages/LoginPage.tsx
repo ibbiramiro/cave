@@ -1,18 +1,70 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import CaVeLogo from '../components/CaVeLogo';
+import { supabase } from '../lib/supabase';
 
 export default function LoginPage() {
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const [fullName, setFullName] = useState('');
+  const [isSignUp, setIsSignUp] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [error, setError] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+    setSuccessMsg(null);
     setIsLoading(true);
-    // Simulate login
-    setTimeout(() => setIsLoading(false), 2000);
+    
+    try {
+      if (isSignUp) {
+        const { error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              full_name: fullName,
+            }
+          }
+        });
+        
+        if (signUpError) {
+          setError(signUpError.message);
+        } else {
+          setSuccessMsg('Akun berhasil dibuat! Anda sekarang bisa login.');
+          setIsSignUp(false);
+          setPassword('');
+        }
+      } else {
+        const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
+        if (authError) {
+          setError(authError.message === 'Invalid login credentials'
+            ? 'Email atau password salah. Silakan coba lagi.'
+            : authError.message);
+        } else {
+          navigate('/schedules');
+        }
+      }
+    } catch {
+      setError('Terjadi kesalahan. Silakan coba lagi.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleOAuth = async (provider: 'google' | 'azure') => {
+    setError(null);
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: { redirectTo: `${window.location.origin}/schedules` },
+    });
+    if (oauthError) setError(oauthError.message);
   };
 
   return (
@@ -135,6 +187,7 @@ export default function LoginPage() {
             <button
               id="btn-login-google"
               type="button"
+              onClick={() => handleOAuth('google')}
               className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-700 font-medium text-sm
                 hover:bg-gray-50 hover:border-gray-300 hover:shadow-md
                 active:scale-[0.98]
@@ -152,6 +205,7 @@ export default function LoginPage() {
             <button
               id="btn-login-microsoft"
               type="button"
+              onClick={() => handleOAuth('azure')}
               className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-700 font-medium text-sm
                 hover:bg-gray-50 hover:border-gray-300 hover:shadow-md
                 active:scale-[0.98]
@@ -170,12 +224,57 @@ export default function LoginPage() {
           {/* Divider */}
           <div className="flex items-center gap-4 mb-6">
             <div className="flex-1 h-px bg-gray-200" />
-            <span className="text-xs text-gray-400 font-medium uppercase tracking-wider">or login with email</span>
+            <span className="text-xs text-gray-400 font-medium uppercase tracking-wider">
+              {isSignUp ? 'or sign up with email' : 'or login with email'}
+            </span>
             <div className="flex-1 h-px bg-gray-200" />
           </div>
 
+          {/* Error Message */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm flex items-center gap-2 mb-2">
+              <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+              {error}
+            </div>
+          )}
+
+          {/* Success Message */}
+          {successMsg && (
+            <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl text-sm flex items-center gap-2 mb-2">
+              <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+              {successMsg}
+            </div>
+          )}
+
           {/* Login Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Full Name Field (Sign Up Only) */}
+            {isSignUp && (
+              <div className="animate-fade-in">
+                <label htmlFor="fullName" className="block text-sm font-semibold text-cave-blue mb-1.5">
+                  Full Name
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  </div>
+                  <input
+                    id="fullName"
+                    type="text"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="John Doe"
+                    required={isSignUp}
+                    className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-200 text-sm text-gray-800 placeholder-gray-400
+                      focus:outline-none focus:ring-2 focus:ring-cave-blue/20 focus:border-cave-blue
+                      hover:border-gray-300 transition-all duration-200"
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Email Field */}
             <div>
               <label htmlFor="email" className="block text-sm font-semibold text-cave-blue mb-1.5">
@@ -208,13 +307,15 @@ export default function LoginPage() {
                 <label htmlFor="password" className="block text-sm font-semibold text-cave-blue">
                   Password
                 </label>
-                <a
-                  href="#"
-                  id="link-forgot-password"
-                  className="text-xs font-semibold text-cave-accent hover:text-cave-blue transition-colors"
-                >
-                  Forgot password?
-                </a>
+                {!isSignUp && (
+                  <a
+                    href="#"
+                    id="link-forgot-password"
+                    className="text-sm font-medium text-cave-blue hover:text-blue-800 transition-colors"
+                  >
+                    Forgot password?
+                  </a>
+                )}
               </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
@@ -254,19 +355,21 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Remember me */}
-            <div className="flex items-center">
-              <input
-                id="remember-me"
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                className="w-4 h-4 rounded border-gray-300 text-cave-blue focus:ring-cave-blue/20 cursor-pointer"
-              />
-              <label htmlFor="remember-me" className="ml-2 text-sm text-gray-600 cursor-pointer select-none">
-                Remember me
-              </label>
-            </div>
+            {/* Remember Me (Login Only) */}
+            {!isSignUp && (
+              <div className="flex items-center">
+                <input
+                  id="remember"
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="w-4 h-4 text-cave-blue bg-gray-100 border-gray-300 rounded focus:ring-cave-blue focus:ring-2 cursor-pointer"
+                />
+                <label htmlFor="remember" className="ml-2 text-sm font-medium text-gray-700 cursor-pointer select-none">
+                  Remember me
+                </label>
+              </div>
+            )}
 
             {/* Submit Button */}
             <button
@@ -279,33 +382,35 @@ export default function LoginPage() {
                 focus:outline-none focus:ring-2 focus:ring-cave-blue/30 focus:ring-offset-2
                 disabled:opacity-60 disabled:cursor-not-allowed
                 transition-all duration-200 cursor-pointer
-                relative overflow-hidden group"
+                flex items-center justify-center gap-2 mt-4"
             >
-              <span className={`transition-opacity duration-200 ${isLoading ? 'opacity-0' : 'opacity-100'}`}>
-                Login to CaVe
-              </span>
               {isLoading && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <svg className="animate-spin w-5 h-5 text-white" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                </div>
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
               )}
+              {isSignUp ? 'Create Account' : 'Login to CaVe'}
             </button>
           </form>
 
-          {/* Sign Up Link */}
-          <p className="mt-8 text-center text-sm text-gray-500">
-            Don't have an account?{' '}
-            <a
-              href="#"
-              id="link-sign-up"
-              className="font-semibold text-cave-blue hover:text-cave-accent transition-colors"
+          {/* Toggle Login/Sign Up */}
+          <div className="mt-8 text-center">
+            <span className="text-gray-500 text-sm">
+              {isSignUp ? 'Already have an account?' : "Don't have an account?"}
+            </span>
+            <button
+              id="link-signup"
+              onClick={() => {
+                setIsSignUp(!isSignUp);
+                setError(null);
+                setSuccessMsg(null);
+              }}
+              className="ml-1.5 text-cave-blue font-bold text-sm hover:underline"
             >
-              Sign up
-            </a>
-          </p>
+              {isSignUp ? 'Log in' : 'Sign up'}
+            </button>
+          </div>
 
           {/* Footer */}
           <div className="mt-6 flex items-center justify-center gap-4 text-xs text-gray-400">
