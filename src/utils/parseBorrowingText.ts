@@ -23,6 +23,8 @@ export interface ParsedBorrowing {
   checkinDate: string;
   checkinShift: string;
   status: string;
+  roomId: string;         // "MDN803F" (from "Room : MDN803F")
+  roomName: string;       // "Photography Laboratory"
 }
 
 /**
@@ -48,6 +50,17 @@ export interface ParsedBorrowing {
  *   <date> (<shift>)
  *   Status
  *   <status>
+ *
+ * Also supports the room-borrowing variant:
+ *   Assets : 13
+ *   ...
+ *   Notes
+ *   <purpose>
+ *   Room : <RoomID>
+ *   <Room name>
+ *   <Location>
+ *   Borrowing Date
+ *   <date> (Shift 2, 3, 4)
  */
 export function parseBorrowingText(raw: string): ParsedBorrowing | null {
   try {
@@ -67,13 +80,15 @@ export function parseBorrowingText(raw: string): ParsedBorrowing | null {
       checkinDate: '',
       checkinShift: '',
       status: '',
+      roomId: '',
+      roomName: '',
     };
 
     // ---- Parse assets section ----
-    // Find "Assets" header
-    const assetsStart = lines.findIndex((l) => l === 'Assets');
+    // Header can be "Assets" or "Assets : 13"
+    const assetsStart = lines.findIndex((l) => /^assets\b/i.test(l));
     // Find "Borrower :" line
-    const borrowerLineIdx = lines.findIndex((l) => l.startsWith('Borrower'));
+    const borrowerLineIdx = lines.findIndex((l) => /^borrower\b/i.test(l));
 
     if (assetsStart !== -1 && borrowerLineIdx !== -1) {
       const assetLines = lines.slice(assetsStart + 1, borrowerLineIdx);
@@ -81,9 +96,9 @@ export function parseBorrowingText(raw: string): ParsedBorrowing | null {
       // Pattern: skip "image not found", then 3 data lines
       let i = 0;
       while (i < assetLines.length) {
-        // Skip image placeholder lines
-        if (assetLines[i].toLowerCase().includes('image not found') ||
-          assetLines[i].toLowerCase().includes('image')) {
+        // Skip image placeholder lines (exact match only, so asset names
+        // containing the word "image" are not dropped)
+        if (/^image not found$/i.test(assetLines[i])) {
           i++;
           continue;
         }
@@ -118,7 +133,7 @@ export function parseBorrowingText(raw: string): ParsedBorrowing | null {
 
       result.email = getValue('Email');
       result.phone = getValue('Phone');
-      result.purpose = getValue('Purpose');
+      result.purpose = getValue('Purpose') || getValue('Notes');
 
       // Parse "04 Sept 2026 (Shift 1)"
       const parseDateTime = (raw: string) => {
@@ -129,14 +144,37 @@ export function parseBorrowingText(raw: string): ParsedBorrowing | null {
 
       const checkoutRaw = getValue('Check-out Date');
       const checkinRaw = getValue('Check-in Date');
-      const { date: coDate, shift: coShift } = parseDateTime(checkoutRaw);
-      const { date: ciDate, shift: ciShift } = parseDateTime(checkinRaw);
+      const borrowingRaw = getValue('Borrowing Date');
 
-      result.checkoutDate = coDate;
-      result.checkoutShift = coShift;
-      result.checkinDate = ciDate;
-      result.checkinShift = ciShift;
+      if (checkoutRaw || checkinRaw) {
+        const { date: coDate, shift: coShift } = parseDateTime(checkoutRaw);
+        const { date: ciDate, shift: ciShift } = parseDateTime(checkinRaw);
+        result.checkoutDate = coDate;
+        result.checkoutShift = coShift;
+        result.checkinDate = ciDate;
+        result.checkinShift = ciShift;
+      } else if (borrowingRaw) {
+        // "16 Oct 2026 (Shift 2, 3, 4)" → check-out Shift 2, check-in Shift 4, same day
+        const { date, shift } = parseDateTime(borrowingRaw);
+        const nums = shift.match(/\d+/g) ?? [];
+        result.checkoutDate = date;
+        result.checkinDate = date;
+        if (nums.length > 0) {
+          result.checkoutShift = `Shift ${nums[0]}`;
+          result.checkinShift = `Shift ${nums[nums.length - 1]}`;
+        }
+      }
+
       result.status = getValue('Status');
+
+      // "Room : MDN803F" followed by room name line
+      const roomIdx = rest.findIndex((l) => /^room\s*:/i.test(l));
+      if (roomIdx !== -1) {
+        const roomLine = rest[roomIdx];
+        result.roomId = roomLine.substring(roomLine.indexOf(':') + 1).trim();
+        const next = rest[roomIdx + 1] ?? '';
+        if (next && next !== 'Borrowing Date') result.roomName = next;
+      }
     }
 
     return result;

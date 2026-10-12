@@ -97,6 +97,8 @@ export default function BorrowingDetailPage() {
       checkoutShift: result.checkoutShift,
       checkinDate:   parseRawDateToISO(result.checkinDate),
       checkinShift:  result.checkinShift,
+      roomId:        result.roomId       || p.roomId,
+      labStudio:     result.roomName     || p.labStudio,
       equipment:     equipment.length > 0 ? equipment : p.equipment,
       binusianId:    result.binusianId   || p.binusianId,
       email:         result.email        || p.email,
