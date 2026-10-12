@@ -48,7 +48,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .select('full_name, avatar_url, role')
         .eq('id', userId)
         .single();
-      if (data) setProfile(data);
+      // full_name is nullable in the DB; normalize to '' to match the profile shape
+      if (data) setProfile({ ...data, full_name: data.full_name ?? '' });
     } catch {
       // Profile may not exist yet if trigger hasn't fired
       setProfile(null);

@@ -169,21 +169,37 @@ export interface BorrowingDetail extends Borrowing {
 // ============================================================
 // Supabase Database generic type (used by createClient)
 // ============================================================
+// supabase-js requires each table to match its GenericTable shape:
+// Row/Insert/Update must be assignable to Record<string, unknown> (interfaces
+// are not, so we flatten them with a mapped type) and Relationships is required.
+type Flatten<T> = { [K in keyof T]: T[K] };
+
+type Table<R, OmitOnInsert extends keyof R = never> = {
+  Row: Flatten<R>;
+  Insert: Flatten<Omit<R, OmitOnInsert> & Partial<Pick<R, OmitOnInsert>>>;
+  Update: Flatten<Partial<R>>;
+  Relationships: [];
+};
+
 export type Database = {
   public: {
     Tables: {
-      users: { Row: User; Insert: Omit<User, 'created_at' | 'updated_at'>; Update: Partial<User> };
-      locations: { Row: Location; Insert: Omit<Location, 'id' | 'created_at'>; Update: Partial<Location> };
-      rooms: { Row: Room; Insert: Omit<Room, 'id' | 'created_at'>; Update: Partial<Room> };
-      events: { Row: CaveEvent; Insert: Omit<CaveEvent, 'id' | 'created_at' | 'updated_at'>; Update: Partial<CaveEvent> };
-      event_participants: { Row: EventParticipant; Insert: Omit<EventParticipant, 'id' | 'created_at'>; Update: Partial<EventParticipant> };
-      online_meetings: { Row: OnlineMeeting; Insert: Omit<OnlineMeeting, 'id' | 'created_at'>; Update: Partial<OnlineMeeting> };
-      it_support_requests: { Row: ITSupportRequest; Insert: Omit<ITSupportRequest, 'id' | 'created_at' | 'updated_at'>; Update: Partial<ITSupportRequest> };
-      borrowers: { Row: Borrower; Insert: Omit<Borrower, 'id' | 'created_at'>; Update: Partial<Borrower> };
-      assets: { Row: Asset; Insert: Omit<Asset, 'id' | 'created_at'>; Update: Partial<Asset> };
-      borrowings: { Row: Borrowing; Insert: Omit<Borrowing, 'id' | 'created_at'>; Update: Partial<Borrowing> };
-      borrowing_assets: { Row: BorrowingAsset; Insert: Omit<BorrowingAsset, 'id'>; Update: Partial<BorrowingAsset> };
-      borrowing_members: { Row: BorrowingMember; Insert: Omit<BorrowingMember, 'id'>; Update: Partial<BorrowingMember> };
+      users: Table<User, 'created_at' | 'updated_at'>;
+      locations: Table<Location, 'id' | 'created_at'>;
+      rooms: Table<Room, 'id' | 'created_at'>;
+      events: Table<CaveEvent, 'id' | 'created_at' | 'updated_at'>;
+      event_participants: Table<EventParticipant, 'id' | 'created_at'>;
+      online_meetings: Table<OnlineMeeting, 'id' | 'created_at'>;
+      it_support_requests: Table<ITSupportRequest, 'id' | 'created_at' | 'updated_at'>;
+      borrowers: Table<Borrower, 'id' | 'created_at'>;
+      assets: Table<Asset, 'id' | 'created_at'>;
+      borrowings: Table<Borrowing, 'id' | 'created_at'>;
+      borrowing_assets: Table<BorrowingAsset, 'id'>;
+      borrowing_members: Table<BorrowingMember, 'id'>;
     };
+    Views: { [_ in never]: never };
+    Functions: { [_ in never]: never };
+    Enums: { [_ in never]: never };
+    CompositeTypes: { [_ in never]: never };
   };
 };
